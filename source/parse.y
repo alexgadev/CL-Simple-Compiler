@@ -19,9 +19,10 @@ extern FILE* yyin;
 /* ------ Auxiliar function declaration ------ */
 void print_iden(char*, atributs);
 void print_expr(atributs);
-int check_types_assig(atributs, atributs);
-int check_types(atributs, atributs);
-int check_types_intfl(atributs, atributs);
+bool is_numeric(atributs, atributs);
+bool is_string(atributs, atributs);
+bool is_bool(atributs, atributs);
+int num_types(atributs, atributs);
 
 
 /* ------ Auxiliar variables ------ */
@@ -78,8 +79,8 @@ statement: expr				{ if(!err) print_expr($1); }
 
 expr: bool_and				{ $$ = $1; }
     | expr BOOL_OP_OR bool_and		{	if(!err){ 
-							int res = check_types($1, $3);
-							if((res == 2) && ($1.type == $3.type)){
+							bool res = is_bool($1, $3);
+							if(res && ($1.type == $3.type)){
 								$$.boolean = $1.boolean || $3.boolean ? true : false;
 								$$.type = 3;
 
@@ -95,8 +96,8 @@ expr: bool_and				{ $$ = $1; }
 
 bool_and: bool_not			{ $$ = $1; }
 	| bool_and BOOL_OP_AND bool_not	{ 	if(!err){
-							int res = check_types($1, $3);
-							if((res == 2) && ($1.type == $3.type)){
+							bool res = is_bool($1, $3);
+							if(res && ($1.type == $3.type)){
 								$$.boolean = $1.boolean && $3.boolean ? true : false;
 								$$.type = 3;
 
@@ -128,10 +129,11 @@ bool_not: BOOL_OP_NOT relexpr		{ 	if(!err){
 
 relexpr: arith				{ $$ = $1; }
 	| relexpr OP_GT arith		{	if(!err){
-							int res = check_types($1, $3);
-							if(res == 0){
-								res = check_types_intfl($1, $3);
-								switch(res){
+							bool numeric = is_numeric($1, $3);
+
+							if(numeric){
+								int type_expr = num_types($1, $3);
+								switch(type_expr){
 									case 0: $$.boolean = $1.integer > $3.integer ? true : false;
 										break;
 									case 1: $$.boolean = $1.integer > $3.floating ? true : false;
@@ -147,7 +149,7 @@ relexpr: arith				{ $$ = $1; }
 							}
 							else{
 								// string arguments are not valid
-								if(res == 1){
+								if(is_string($1, $3)){
 									yyerror("semantic error: cannot compare a string argument");
 								}
 								// boolean arguments are not valid either
@@ -160,10 +162,11 @@ relexpr: arith				{ $$ = $1; }
 					}
 	| relexpr OP_GE arith		{
 						if(!err){
-							int res = check_types($1, $3);
-							if(res == 0){
-								res = check_types_intfl($1, $3);
-								switch(res){
+							bool numeric = is_numeric($1, $3);
+
+							if(numeric){
+								int type_expr = num_types($1, $3);
+								switch(type_expr){
 									case 0: $$.boolean = $1.integer >= $3.integer ? true : false;
 										break;
 									case 1: $$.boolean = $1.integer >= $3.floating ? true : false;
@@ -179,7 +182,7 @@ relexpr: arith				{ $$ = $1; }
 							}
 							else{
 								// string arguments are not valid
-								if(res == 1){
+								if(is_string($1, $3)){
 									yyerror("semantic error: cannot compare a string argument");
 								}
 								// boolean arguments are not valid either
@@ -192,10 +195,11 @@ relexpr: arith				{ $$ = $1; }
 					}
 	| relexpr OP_LT arith		{
 						if(!err){
-							int res = check_types($1, $3);
-							if(res == 0){
-								res = check_types_intfl($1, $3);
-								switch(res){
+							bool numeric = is_numeric($1, $3);
+
+							if(numeric){
+								int type_expr = num_types($1, $3);
+								switch(type_expr){
 									case 0: $$.boolean = $1.integer < $3.integer ? true : false;
 										break;
 									case 1: $$.boolean = $1.integer < $3.floating ? true : false;
@@ -211,7 +215,7 @@ relexpr: arith				{ $$ = $1; }
 							}
 							else{
 								// string arguments are not valid
-								if(res == 1){
+								if(is_string($1, $3)){
 									yyerror("semantic error: cannot compare a string argument");
 								}
 								// boolean arguments are not valid either
@@ -224,10 +228,11 @@ relexpr: arith				{ $$ = $1; }
 					}
 	| relexpr OP_LE arith		{
 						if(!err){
-							int res = check_types($1, $3);
-							if(res == 0){
-								res = check_types_intfl($1, $3);
-								switch(res){
+							bool numeric = is_numeric($1, $3);
+
+							if(numeric){
+								int type_expr = num_types($1, $3);
+								switch(type_expr){
 									case 0: $$.boolean = $1.integer <= $3.integer ? true : false;
 										break;
 									case 1: $$.boolean = $1.integer <= $3.floating ? true : false;
@@ -243,7 +248,7 @@ relexpr: arith				{ $$ = $1; }
 							}
 							else{
 								// string arguments are not valid
-								if(res == 1){
+								if(is_string($1, $3)){
 									yyerror("semantic error: cannot compare a string argument");
 								}
 								// boolean arguments are not valid either
@@ -256,10 +261,11 @@ relexpr: arith				{ $$ = $1; }
 					}
 	| relexpr OP_EQ arith		{
 						if(!err){
-							int res = check_types($1, $3);
-							if(res == 0){
-								res = check_types_intfl($1, $3);
-								switch(res){
+							bool numeric = is_numeric($1, $3);
+
+							if(numeric){
+								int type_expr = num_types($1, $3);
+								switch(type_expr){
 									case 0: $$.boolean = $1.integer == $3.integer ? true : false;
 										break;
 									case 1: $$.boolean = $1.integer == $3.floating ? true : false;
@@ -275,7 +281,7 @@ relexpr: arith				{ $$ = $1; }
 							}
 							else{
 								// string arguments are not valid
-								if(res == 1){
+								if(is_string($1, $3)){
 									yyerror("semantic error: cannot compare a string argument");
 								}
 								// boolean arguments are not valid either
@@ -287,10 +293,11 @@ relexpr: arith				{ $$ = $1; }
 						}
 					}
 	| relexpr OP_INEQ arith		{ 	if(!err){
-							int res = check_types($1, $3);
-							if(res == 0){
-								res = check_types_intfl($1, $3);
-								switch(res){
+							bool numeric = is_numeric($1, $3);
+
+							if(numeric){
+								int type_expr = num_types($1, $3);
+								switch(type_expr){
 									case 0: $$.boolean = $1.integer != $3.integer ? true : false;
 										break;
 									case 1: $$.boolean = $1.integer != $3.floating ? true : false;
@@ -306,7 +313,7 @@ relexpr: arith				{ $$ = $1; }
 							}
 							else{
 								// string arguments are not valid
-								if(res == 1){
+								if(is_string($1, $3)){
 									yyerror("semantic error: cannot compare a string argument");
 								}
 								// boolean arguments are not valid either
@@ -322,8 +329,8 @@ relexpr: arith				{ $$ = $1; }
 
 arith: term				{ $$ = $1; }
 	| arith OP_ADD term		{ 	if(!err){
-							int res = check_types($1, $3);
-							if(res == 0){
+							bool numeric = is_numeric($1, $3);
+							if(numeric){
 								if($1.type == 0){
 									if($3.type == 0){
 										$$.integer = $1.integer + $3.integer;
@@ -347,7 +354,7 @@ arith: term				{ $$ = $1; }
 							}
 							else{
 								// concatenation
-								if(res == 1){
+								if(is_string($1, $3)){
 									char* temp = strdup($1.string);
 									char* aux = strdup($3.string);
 
@@ -395,26 +402,30 @@ arith: term				{ $$ = $1; }
 					}
 	| arith OP_SUB term		{	if(!err){
 							// check types and make appropiate conversion if needed	
-							int res = check_types($1, $3);
-							if(res == 0){
-								fprintf(fp, "num_expr OP_SUB term\n");
-								if($1.type == 0){
-									$$.type = 1;
-									if($3.type == 0){
-										$$.integer = $1.integer - $3.integer;
-										$$.type = 0;
-									}
-									else{
-										$$.floating = $1.integer - $3.floating;
-									}
+							bool numeric = is_numeric($1, $3);
+
+							if(numeric){
+								fprintf(fp, "term OP_SUB unary\n");
+								
+								int type_expr = num_types($1, $3);
+								
+								switch(type_expr){
+									case 0: $$.integer = $1.integer - $3.integer;
+										break;
+									case 1: $$.floating = $1.integer - $3.floating;
+										break;
+									case 2: $$.floating = $1.floating - $3.integer;
+										break;
+									case 3: $$.floating = $1.floating - $3.floating;
+										break;
 								}
-								else{
-									$$.floating = ($3.type == 0) ? $1.floating - $3.integer : $1.floating - $3.floating;
-								}
+								
+								$$.type = type_expr == 0 ? 0 : 1; 
+
 							}
 							else{
 								// string arguments are not valid
-								if(res == 1){
+								if(is_string($1, $3)){
 									yyerror("semantic error: cannot compute the subtraction of a string argument");
 								}
 								// boolean arguments are not valid either
@@ -430,26 +441,30 @@ arith: term				{ $$ = $1; }
 term: unary				{ $$ = $1; }
     | term OP_MUL unary			{ 	if(!err){
 							// check types and make appropiate conversion if needed
-							int res = check_types($1, $3);
-							if(res == 0){
+							bool numeric = is_numeric($1, $3);
+
+							if(numeric){
 								fprintf(fp, "term OP_MUL unary\n");
-								$$.type = 1;
-								if($1.type == 0){
-									if($3.type == 0){
-										$$.integer = $1.integer * $3.integer;
-										$$.type = 0;
-									}
-									else{
-										$$.floating = $1.integer * $3.floating;
-									}
+								
+								int type_expr = num_types($1, $3);
+								
+								switch(type_expr){
+									case 0: $$.integer = $1.integer * $3.integer;
+										break;
+									case 1: $$.floating = $1.integer * $3.floating;
+										break;
+									case 2: $$.floating = $1.floating * $3.integer;
+										break;
+									case 3: $$.floating = $1.floating * $3.floating;
+										break;
 								}
-								else{
-									$$.floating = ($3.type == 0) ? $1.floating * $3.integer : $1.floating * $3.floating;
-								}
+								
+								$$.type = type_expr == 0 ? 0 : 1; 
+
 							}
 							else{
 								// string arguments are not valid
-								if(res == 1){
+								if(is_string($1, $3)){
 									yyerror("semantic error: cannot compute the division of a string argument");
 								}
 								// boolean arguments are not valid either
@@ -462,8 +477,9 @@ term: unary				{ $$ = $1; }
 					}
     | term OP_DIV unary			{ 	if(!err){
 							// check types and make appropiate conversion if needed
-							int res = check_types($1, $3);
-							if(res == 0){
+							bool numeric = is_numeric($1, $3);
+
+							if(numeric){
 								fprintf(fp, "term OP_DIV unary\n");
 								// control division by 0
 								if($3.type == 0){
@@ -491,7 +507,7 @@ term: unary				{ $$ = $1; }
 							}
 							else{
 								// string arguments are not valid
-								if(res == 1){
+								if(is_string($1, $3)){
 									yyerror("semantic error: cannot compute the division of a string argument");
 								}
 								// boolean arguments are not valid either
@@ -504,27 +520,31 @@ term: unary				{ $$ = $1; }
 
 					}
     | term OP_MOD unary			{ 	if(!err){
-							// check types and make appropiate conversion if needed
-							int res = check_types($1, $3);
-							if(res == 0){
+							// check types and make appropiate conversion if needed							
+							bool numeric = is_numeric($1, $3);
+
+							if(numeric){
 								fprintf(fp, "term OP_MOD unary\n");
-								$$.type = 1;
-								if($1.type == 0){
-									if($3.type == 0){
-										$$.integer = $1.integer % $3.integer;
-										$$.type = 0;
-									}
-									else{
-										$$.floating = fmod($1.integer,$3.floating);
-									}
+								
+								int type_expr = num_types($1, $3);
+								
+								switch(type_expr){
+									case 0: $$.integer = $1.integer % $3.integer;
+										break;
+									case 1: $$.floating = fmod($1.integer,$3.floating);
+										break;
+									case 2: $$.floating = fmod($1.floating, $3.integer);
+										break;
+									case 3: $$.floating = fmod($1.floating, $3.floating);
+										break;
 								}
-								else{
-									$$.floating = ($3.type == 0) ? fmod($1.floating, $3.integer) : fmod($1.floating, $3.floating);
-								}
+								
+								$$.type = type_expr == 0 ? 0 : 1; 
+
 							}
 							else{
 								// string arguments are not valid
-								if(res == 1){
+								if(is_string($1, $3)){
 									yyerror("semantic error: cannot compute the division of a string argument");
 								}
 								// boolean arguments are not valid either
@@ -560,32 +580,30 @@ unary: OP_SUB unary			{ 	if(!err){
 
 pow: factor OP_POW pow			{ 	if(!err){
 							// check types and make appropiate conversion if needed
-							int res = check_types($1, $3);
-							if(res == 0){
+							bool numeric = is_numeric($1, $3);
+
+							if(numeric){
 								fprintf(fp, "factor OP_POW pow\n");
-								if($1.type == 0){
-									if($3.type == 0){
-										$$.integer = pow($1.integer, $3.integer);
-										$$.type = 0;
-									}
-									else{
-										$$.floating = pow($1.integer, $3.floating);
-										$$.type = 1;
-									}
+
+								int type_expr = num_types($1, $3);
+								
+								switch(type_expr){
+									case 0: $$.integer = pow($1.integer, $3.integer);
+										break;
+									case 1: $$.floating = pow($1.integer, $3.floating);
+										break;
+									case 2: $$.floating = pow($1.floating, $3.integer);
+										break;
+									case 3: $$.floating = pow($1.floating, $3.floating);
+										break;
 								}
-								else{
-									if($3.type == 0){
-										$$.floating = pow($1.floating, $3.integer);
-									}
-									else{
-										$$.floating = pow($1.floating, $3.floating);
-									}
-									$$.type = 1;
-								}
+
+								$$.type = type_expr == 0 ? 0 : 1;
+
 							}
 							else{
 								// string arguments are not valid
-								if(res == 1){
+								if(is_string($1, $3)){
 									yyerror("semantic error: cannot compute the power of a string argument");
 								}
 								// boolean arguments are not valid either
@@ -621,31 +639,34 @@ factor: T_IDEN				{	int found = sym_lookup($1.string, &aux);
 
 
 assignment: T_IDEN ASSIG expr		{ 	if(!err){ // check if there were any errors in the calculations of the expr to be assigned
-							int found = sym_lookup($1.string, &aux); // 1. search identifier
 							name = $1.string;
+							int found = sym_lookup(name, &aux); // 1. search identifier
 						
-							// 2. if exists, check types
+							// check whether the identifier was found or not
 							if(found == 0){
-								// 2a. if types are compatible then change var value
-								if(check_types_assig(aux, $3) == 1){
+								// if types are compatible then change var value
+
+								// for assignments, compatibility depends only if types
+								// are the same for both the identifier found and the value to be saved
+								if(aux.type == $3.type){
 									aux = $3;
 									sym_enter(name, &aux);
 								}
-								// 2b. if types aren't compatible then there's a semantic error
+								// if types aren't compatible then there's a semantic error
 								else{
 									yyerror("semantic error: identifier and expression type missmatch"); 
 									err = true;
 								}
 							}
 							else{
-								// 3. if identifier doesn't exist then we have to create a new entry
+								// if identifier doesn't exist then we have to create a new entry
 								if(found == 2){
 									aux = $3;
 									sym_add(name, &aux);
 								}
 							}
 
-							// 4. if the assignment succeeded log grammar production
+							// if the assignment succeeded log grammar production
 							if(!err) {
 								fprintf(fp, "reducido por T_IDEN ASSIG expr\n"); // TODO: change log message to something more meaningful
 								$$ = $3;
@@ -687,37 +708,36 @@ int main(int argc, char **argv)
 }
 
 
-/*---------------------------------------------*/
-/*------------- Auxiliar functions ------------*/
-/*---------------------------------------------*/
+/*-----------------------------------------------------*/
+/*----------------- Auxiliar functions ----------------*/
+/*-----------------------------------------------------*/
 
-// could potentially add formatting from float to integer or reverse
-int check_types_assig(atributs a, atributs b){ //TODO: if no more usages of function, delete it, just one line of code...
-  // could do something along the lines of 
-  // 0 for not compatible types
-  // 1 for equal types
-  // 2 for compatible types i.e float and integer and reverse
-  return a.type == b.type;
+/* 
+*  Checks if passed variables are of a numeric type or not 
+*/
+bool is_numeric(atributs a, atributs b){
+	return (((a.type == 0) || (a.type == 1)) && ((b.type == 0) || (b.type == 1)));
 }
 
-
-int check_types(atributs a, atributs b){
-  if((a.type == 2) || (b.type == 2)){
-	return 1;
-  }
-  else{
-  	if((a.type == 3) || (b.type == 3)){
-		return 2;
-  	}
-	else return 0;
-  }
+bool is_string(atributs a, atributs b){
+	return (a.type == 2) || (b.type == 2);
 }
 
-// return 0: both integers
-// return 1: $1 integer, $3 float
-// return 2: $1 float, $3 integer
-// return 3: both float
-int check_types_intfl(atributs a, atributs b){
+bool is_bool(atributs a, atributs b){
+	return (a.type == 3) || (b.type == 3);
+}
+
+/* 
+*  Returns the kind of numeric expression we've encountered.
+*  Must only be used after 'is_numeric' succeeded, otherwise errors might happen.
+*
+*  0 -> both integers
+*  1 -> a int, b float
+*  2 -> a float, b int
+*  3 -> both floats
+*
+*/
+int num_types(atributs a, atributs b){
   if((a.type == 0) && (b.type == 0)){
   	return 0;
   }
