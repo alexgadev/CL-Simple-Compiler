@@ -38,6 +38,8 @@ char* name;
 char* temp; //TODO: maybe not global
 bool err; // error flag
 
+char *arr[32]; // array containning the symbol that form the sentence being parsed
+int n_symbols = 0;
 %}
 
 
@@ -76,8 +78,26 @@ line: EOL 				{ line++; err = false; }
     | CMD_EXIT				{ exit(0); }
 ;
 
-statement: expr				{ if(!err) console_log_expr($1); }
-	 | assignment			{ if(!err) console_log_iden(name, $1); }
+statement: expr				{ 	if(!err) {
+	 						console_log_expr($1); 
+							printf("Sentence by symbols: ");
+							for(int i = 0; i < n_symbols; i++){
+								printf("%s", arr[i]);
+							}
+							printf("\n");
+							n_symbols = 0;
+						}
+					}
+	 | assignment			{ 	if(!err) {
+	 						console_log_iden(name, $1); 
+							printf("Sentence by symbols: ");
+							for(int i = 0; i < n_symbols; i++){
+								printf("%s", arr[i]);	
+							}
+							printf("\n");
+							n_symbols = 0;
+						}
+					}
 ;
 
 expr: bool_and				{ $$ = $1; }
@@ -92,6 +112,9 @@ expr: bool_and				{ $$ = $1; }
 
 								file_log(temp); // log grammar production
 								free(temp);
+								
+								arr[n_symbols] = " or ";
+								n_symbols++;
 							}
 							else{
 								yyerror("semantic error: cannot compute logical and on non-boolean values");
@@ -113,6 +136,9 @@ bool_and: bool_not			{ $$ = $1; }
 
 								file_log(temp); // log grammar production
 								free(temp);
+								
+								arr[n_symbols] = " and ";
+								n_symbols++;
 						}
 							else{
 								yyerror("semantic error: cannot compute logical and on non-boolean values");
@@ -131,6 +157,9 @@ bool_not: BOOL_OP_NOT relexpr		{ 	if(!err){
 
 								file_log(temp); // log grammar production
 								free(temp);
+								
+								arr[n_symbols] = " not ";
+								n_symbols++;
 							}
 							else{
 								yyerror("semantic error: cannot compute logical not on non-boolean values");
@@ -172,6 +201,9 @@ relexpr: arith				{ $$ = $1; }
 
 								file_log(temp); // log grammar production
 								free(temp);
+								
+								arr[n_symbols] = " > ";
+								n_symbols++;
 							}
 							else{
 								// string arguments are not valid
@@ -217,6 +249,9 @@ relexpr: arith				{ $$ = $1; }
 
 								file_log(temp); // log grammar production
 								free(temp);
+
+								arr[n_symbols] = " >= ";
+								n_symbols++;
 							}
 							else{
 								// string arguments are not valid
@@ -262,6 +297,9 @@ relexpr: arith				{ $$ = $1; }
 
 								file_log(temp); // log grammar production
 								free(temp);
+
+								arr[n_symbols] = " < ";
+								n_symbols++;
 							}
 							else{
 								// string arguments are not valid
@@ -306,6 +344,9 @@ relexpr: arith				{ $$ = $1; }
 
 								file_log(temp); // log grammar production
 								free(temp);
+
+								arr[n_symbols] = " <= ";
+								n_symbols++;
 							}
 							else{
 								// string arguments are not valid
@@ -350,6 +391,9 @@ relexpr: arith				{ $$ = $1; }
 
 								file_log(temp); // log grammar production
 								free(temp);
+
+								arr[n_symbols] = " = ";
+								n_symbols++;
 							}
 							else{
 								// string arguments are not valid
@@ -394,6 +438,9 @@ relexpr: arith				{ $$ = $1; }
 
 								file_log(temp); // log grammar production
 								free(temp);
+
+								arr[n_symbols] = " <> ";
+								n_symbols++;
 							}
 							else{
 								// string arguments are not valid
@@ -443,6 +490,9 @@ arith: term				{ $$ = $1; }
 								
 								file_log(temp); // log grammar production
 								free(temp);
+
+								arr[n_symbols] = " + ";
+								n_symbols++;
 							}
 							else{
 								// concatenation
@@ -491,6 +541,9 @@ arith: term				{ $$ = $1; }
 									free(str);
 									free(aux);
 									free(aux1);
+
+									arr[n_symbols] = " + ";
+									n_symbols++;
 								}
 								else{
 									yyerror("semantic error: cannot compute addition of boolean values");
@@ -530,6 +583,9 @@ arith: term				{ $$ = $1; }
 								
 								file_log(temp); // log grammar production
 								free(temp);
+
+								arr[n_symbols] = " - ";
+								n_symbols++;
 							}
 							else{
 								// string arguments are not valid
@@ -578,6 +634,9 @@ term: unary				{ $$ = $1; }
 								
 								file_log(temp); // log grammar production
 								free(temp);
+
+								arr[n_symbols] = " * ";
+								n_symbols++;
 							}
 							else{
 								// string arguments are not valid
@@ -639,6 +698,9 @@ term: unary				{ $$ = $1; }
 
 									file_log(temp); // log grammar production
 									free(temp);
+
+									arr[n_symbols] = " / ";
+									n_symbols++;
 								}
 							}
 							else{
@@ -686,6 +748,9 @@ term: unary				{ $$ = $1; }
 								
 								file_log(temp); // log grammar production
 								free(temp);
+
+								arr[n_symbols] = " % ";
+								n_symbols++;
 							}
 							else{
 								// string arguments are not valid
@@ -720,6 +785,9 @@ unary: OP_SUB unary			{ 	if(!err){
 								
 								file_log(temp); // log grammar production
 								free(temp);
+
+								arr[n_symbols] = " - ";
+								n_symbols++;
 							}
 							else{
 								yyerror("semantic error: cannot negate non-numeric values");
@@ -762,6 +830,9 @@ pow: factor OP_POW pow			{ 	if(!err){
 								
 								file_log(temp); // log grammar production
 								free(temp);
+
+								arr[n_symbols] = " ** ";
+								n_symbols++;
 							}
 							else{
 								// string arguments are not valid
@@ -785,17 +856,42 @@ factor: T_IDEN				{	int found = sym_lookup($1.string, &aux);
       						if(found == 0){
 							name = $1.string;
 							$$ = aux;
+
+							arr[n_symbols] = strdup(name);
+							n_symbols++;
 						}
 						else{
 							yyerror("syntax error: undeclared identifier");
 							err = true;
 						}
 					}
-      | T_INT				{ $$ = $1; $$.type = 0; }
-      | T_FLOAT				{ $$ = $1; $$.type = 1; }
-      | T_STRING			{ $$ = $1; $$.type = 2; }
-      | T_BOOL				{ $$ = $1; $$.type = 3; }
-      | SYM_OB expr SYM_CB		{ $$ = $2; /*TODO: large string containing complete sentence*/}
+      | T_INT				{ 	$$ = $1; 
+      						$$.type = 0; 
+      						asprintf(&arr[n_symbols], "%d", $1.integer);
+						//printf("arr[%d] = %s", n_symbols, arr[n_symbols]);
+						n_symbols++;
+					}
+      | T_FLOAT				{ 	$$ = $1; 
+      						$$.type = 1; 
+						asprintf(&arr[n_symbols], "%lf", $1.floating);
+						n_symbols++;
+					}
+      | T_STRING			{ 	$$ = $1; 
+      						$$.type = 2; 
+						
+						arr[n_symbols] = strdup($1.string);
+						n_symbols++;
+					}
+      | T_BOOL				{ 	$$ = $1; 
+      						$$.type = 3; 
+						
+						asprintf(&arr[n_symbols], "%s", $1.boolean ? "true" : "false");
+						n_symbols++;
+					}
+      | SYM_OB expr SYM_CB		{ 	$$ = $2; /*TODO: large string containing complete sentence*/
+      						arr[n_symbols] = "()";
+						n_symbols++;
+					}
 ;
 
 
@@ -846,6 +942,11 @@ assignment: T_IDEN ASSIG expr		{ 	if(!err){ // check if there were any errors in
 								file_log(temp); // log grammar production
 								free(temp);
 								$$ = $3;
+								
+								arr[n_symbols] = ":=";
+								n_symbols++;
+								arr[n_symbols] = strdup(name);
+								n_symbols++;
 							}
 						}
 					}
