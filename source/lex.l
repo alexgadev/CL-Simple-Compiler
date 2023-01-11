@@ -20,13 +20,12 @@
 						yylval.floating = atof(yytext); 
 						return T_FLOAT; 
 					}
-\".*\"					{ 
+\"[^\+]*\"					{ 
 						// remove first and last characters which are '"'
 						char* temp = strdup(yytext);
 						char* result = temp + 1;
 
 						result[strlen(result) - 1] = '\0';
-
 						yylval.string = result;
 
 						return T_STRING; 

@@ -32,7 +32,7 @@ bool is_bool(atributs, atributs);
 int num_types(atributs, atributs);
 
 
-/* ------ Auxiliar variables ------ */
+/* ------ Global variables ------ */
 FILE* fp; // pointer to the log file created each execution
 int line = 1; // run-time line counter
 char* name;
@@ -84,7 +84,7 @@ statement: expr				{ if(!err) console_log_expr($1); }
 expr: bool_and				{ $$ = $1; }
     | expr BOOL_OP_OR bool_and		{	if(!err){ 
 							bool res = is_bool($1, $3); // arguments can only be of type 'boolean'
-							if(res && ($1.type == $3.type)){
+							if(res){
 								$$.boolean = $1.boolean || $3.boolean; // compute logical or
 								$$.type = 3;
 
@@ -106,7 +106,7 @@ expr: bool_and				{ $$ = $1; }
 bool_and: bool_not			{ $$ = $1; }
 	| bool_and BOOL_OP_AND bool_not	{ 	if(!err){
 							bool res = is_bool($1, $3); // arguments can only be of type 'boolean'
-							if(res && ($1.type == $3.type)){
+							if(res){
 								$$.boolean = $1.boolean && $3.boolean; // compute logical and
 								$$.type = 3;
 
@@ -405,7 +405,7 @@ arith: term				{ $$ = $1; }
 													break;
 												case 1: asprintf(&aux1, "%lf", $3.floating);
 													break;
-												case 3: asprintf(&aux1, "%s", $1.boolean ? "true" : "false");
+												case 3: asprintf(&aux1, "%s", $3.boolean ? "true" : "false");
 													break;
 											}
 										}
@@ -696,7 +696,8 @@ factor: T_IDEN				{	atributs aux;
       | T_FLOAT				{ $$ = $1; $$.type = 1; }
       | T_STRING			{ $$ = $1; $$.type = 2; }
       | T_BOOL				{ $$ = $1; $$.type = 3; }
-      | SYM_OB expr SYM_CB		{ $$ = $2; /*TODO: large string containing complete sentence*/}
+      | CONST_PI			{ atributs pi; pi.floating = acos(-1.0); pi.type = 1; $$ = pi; }
+      | SYM_OB expr SYM_CB		{ $$ = $2; }
 ;
 
 
@@ -755,7 +756,7 @@ assignment: T_IDEN ASSIG expr		{ 	if(!err){ // check if there were any errors in
 
 %%
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 { 
   // get current date and time 
   time_t t = time(NULL); 
@@ -774,6 +775,10 @@ int main(int argc, char **argv)
   fp = fopen(path, "w");
   free(path);
 
+  if(argc > 1) { 
+  	fprintf(fp, "Reading from file: %s\n\n", argv[1]);
+	yyin = fopen(argv[1], "r");
+  }
   yyparse();
 
   fclose(fp);
@@ -782,7 +787,7 @@ int main(int argc, char **argv)
 
 void yyerror(char *str)
 {
-  fprintf(stderr, "Compiler error:%d: %s.\n", line, str);
+  fprintf(stderr, "Compiler error:%d -> %s.\n", line, str);
 }
 
 
@@ -802,7 +807,7 @@ bool is_string(atributs a, atributs b){
 }
 
 bool is_bool(atributs a, atributs b){
-	return (a.type == 3) || (b.type == 3);
+	return (a.type == 3) && (b.type == 3);
 }
 
 /* 
@@ -852,7 +857,7 @@ void console_log_iden(char* name, atributs assig){
 
 void console_log_expr(atributs expr){ 
   switch(expr.type){
-	case 0: printf("Expression of type: int\tvalue: %d\n", expr.integer); 
+	case 0: printf("Expression of type: int\t\tvalue: %d\n", expr.integer); 
 		break;
 	case 1: printf("Expression of type: float\tvalue: %lf\n", expr.floating); 
 		break;
@@ -864,11 +869,11 @@ void console_log_expr(atributs expr){
 }
 
 void file_log(char* str){
-	fprintf(fp, "sentence in line %d:\n\tgrammar production -> %s\n\n", line, str);
+	fprintf(fp, "sentence in line %d:\n\tgrammar production -> %s.\n\n", line, str);
 }
 
 void file_log_error(char* str){
-	fprintf(fp, "Compiler error:%d: %s.\n\n", line, str);
+	fprintf(fp, "sentence in line %d:\n\tcompiler error -> %s.\n\n", line, str);
 }
 
 void check_error(atributs a, atributs b){
