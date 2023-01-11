@@ -1,12 +1,10 @@
-# CL-Calculadora
-
 # Instrucciones de compilación:
 1) make o make all -> compila todo el proyecto generando archivos intermedios guardados en ./gen/ y el ejecutable como ./calculadora
 2) make clean -> elimina los archivos intermedios y el ejecutable ./calculadora
 3) make fullclean -> lo mismo que make clean además de eliminar los archivos de log guardados en ./log/
 
 
-# Instrucciones de ejecución: //TODO: 
+# Instrucciones de ejecución: 
 Para cualquiera de las dos opciones de ejecución, compilar primero con una de las instrucciones de arriba.
 1) Con archivo de entrada -> 1. ejecutar "./calculadora" seguido del nombre del archivo de entrada.
 2) Por línea de comando -> 1. ejecutar "./calculadora" 2. escribir sentencia a sentencia separada por saltos de línea.
