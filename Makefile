@@ -12,8 +12,9 @@ LEX = flex
 BIS = bison
 
 # "Libraries"
-CFLAGS = -lfl -lm -std=gnu99
-SYMTAB = include/symtab/symtab.c
+CFLAGS = -lfl -lm -std=gnu99 		# -lm is for math function
+					# -std=gnu99 enables the usage of asprintf
+SYMTAB = include/symtab/symtab.c	
 
 # Flex and bison sources
 LEXSRC = source/lex.l
@@ -28,6 +29,9 @@ BISGEN = gen/parse.tab.c
 # Executable filename
 BIN = calculadora
 
+# Log's path
+LOG = log/*
+
 ##########################################################
 
 all : $(LEXSRC) $(BISSRC) $(SYMTAB)
@@ -37,3 +41,6 @@ all : $(LEXSRC) $(BISSRC) $(SYMTAB)
 
 clean :
 	rm -f $(BIN) $(LEXGEN) $(BISGEN) $(BISHDR)
+
+fullclean :
+	rm -f $(BIN) $(LEXGEN) $(BISGEN) $(BISHDR) $(LOG)

@@ -21,6 +21,8 @@ void console_log_iden(char*, atributs);
 void console_log_expr(atributs);
 
 void file_log(char*); // file logging (primarily grammar production) for debugging
+void file_log_error(char*); // file logging for errors
+void check_error(atributs, atributs);
 
 
 /* ------ Auxiliar function declaration ------ */
@@ -33,11 +35,9 @@ int num_types(atributs, atributs);
 /* ------ Auxiliar variables ------ */
 FILE* fp; // pointer to the log file created each execution
 int line = 1; // run-time line counter
-atributs aux; //TODO: maybe not global
 char* name;
-char* temp; //TODO: maybe not global
+char* temp; 
 bool err; // error flag
-
 
 %}
 
@@ -83,9 +83,9 @@ statement: expr				{ if(!err) console_log_expr($1); }
 
 expr: bool_and				{ $$ = $1; }
     | expr BOOL_OP_OR bool_and		{	if(!err){ 
-							bool res = is_bool($1, $3);
+							bool res = is_bool($1, $3); // arguments can only be of type 'boolean'
 							if(res && ($1.type == $3.type)){
-								$$.boolean = $1.boolean || $3.boolean;
+								$$.boolean = $1.boolean || $3.boolean; // compute logical or
 								$$.type = 3;
 
 								asprintf(&temp, "%s or %s = %s; of type boolean reduced from rule 'expr BOOL_OP_OR bool_and'",
@@ -95,7 +95,8 @@ expr: bool_and				{ $$ = $1; }
 								free(temp);
 							}
 							else{
-								yyerror("semantic error: cannot compute logical and on non-boolean values");
+								yyerror("semantic error: cannot compute logical or on non-boolean values");
+								file_log_error("semantic error: cannot compute logical or on non-boolean values");
 								err = true;
 							}
 						}
@@ -104,11 +105,12 @@ expr: bool_and				{ $$ = $1; }
 
 bool_and: bool_not			{ $$ = $1; }
 	| bool_and BOOL_OP_AND bool_not	{ 	if(!err){
-							bool res = is_bool($1, $3);
+							bool res = is_bool($1, $3); // arguments can only be of type 'boolean'
 							if(res && ($1.type == $3.type)){
-								$$.boolean = $1.boolean && $3.boolean;
+								$$.boolean = $1.boolean && $3.boolean; // compute logical and
 								$$.type = 3;
 
+					
 								asprintf(&temp, "%s and %s = %s; of type boolean reduced from rule 'bool_and BOOL_OP_AND bool_not'",
 										$1.boolean ? "true" : "false", $3.boolean ? "true" : "false", $$.boolean ? "true" : "false");
 
@@ -117,6 +119,7 @@ bool_and: bool_not			{ $$ = $1; }
 						}
 							else{
 								yyerror("semantic error: cannot compute logical and on non-boolean values");
+								file_log_error("semantic error: cannot compute logical and on non-boolean values");
 								err = true;
 							}
 						}
@@ -124,9 +127,11 @@ bool_and: bool_not			{ $$ = $1; }
 ;
 	
 bool_not: BOOL_OP_NOT relexpr		{ 	if(!err){
+							// argument can only be of type 'boolean'
 							if($2.type == 3){
-								$$.boolean = !$2.boolean;
+								$$.boolean = !$2.boolean; // negate with logical '!'
 								$$.type = 3;
+								
 								
 								asprintf(&temp, "not %s; of type boolean reduced from rule 'BOOL_OP_NOT relexpr'", $$.boolean ? "true" : "false");
 
@@ -135,6 +140,7 @@ bool_not: BOOL_OP_NOT relexpr		{ 	if(!err){
 							}
 							else{
 								yyerror("semantic error: cannot compute logical not on non-boolean values");
+								file_log_error("semantic error: cannot compute logical not on non-boolean values");
 								err = true;
 							}
 						}
@@ -174,17 +180,7 @@ relexpr: arith				{ $$ = $1; }
 								file_log(temp); // log grammar production
 								free(temp);
 							}
-							else{
-								// string arguments are not valid
-								if(is_string($1, $3)){
-									yyerror("semantic error: cannot compare a string argument");
-								}
-								// boolean arguments are not valid either
-								else{
-									yyerror("semantic error: cannot compare a boolean value");
-								}
-								err = true;
-							}
+							else{ check_error($1, $3); }
 						}
 					}
 	| relexpr OP_GE arith		{
@@ -219,17 +215,7 @@ relexpr: arith				{ $$ = $1; }
 								file_log(temp); // log grammar production
 								free(temp);
 							}
-							else{
-								// string arguments are not valid
-								if(is_string($1, $3)){
-									yyerror("semantic error: cannot compare a string argument");
-								}
-								// boolean arguments are not valid either
-								else{
-									yyerror("semantic error: cannot compare a boolean value");
-								}
-								err = true;
-							}
+							else{ check_error($1, $3); }
 						}
 					}
 	| relexpr OP_LT arith		{
@@ -264,17 +250,7 @@ relexpr: arith				{ $$ = $1; }
 								file_log(temp); // log grammar production
 								free(temp);
 							}
-							else{
-								// string arguments are not valid
-								if(is_string($1, $3)){
-									yyerror("semantic error: cannot compare a string argument");
-								}
-								// boolean arguments are not valid either
-								else{
-									yyerror("semantic error: cannot compare a boolean value");
-								}
-								err = true;
-							}
+							else{ check_error($1, $3); }
 						}
 					}
 	| relexpr OP_LE arith		{	if(!err){
@@ -308,17 +284,7 @@ relexpr: arith				{ $$ = $1; }
 								file_log(temp); // log grammar production
 								free(temp);
 							}
-							else{
-								// string arguments are not valid
-								if(is_string($1, $3)){
-									yyerror("semantic error: cannot compare a string argument");
-								}
-								// boolean arguments are not valid either
-								else{
-									yyerror("semantic error: cannot compare a boolean value");
-								}
-								err = true;
-							}
+							else{ check_error($1, $3); }
 						}
 					}
 	| relexpr OP_EQ arith		{	if(!err){
@@ -352,17 +318,7 @@ relexpr: arith				{ $$ = $1; }
 								file_log(temp); // log grammar production
 								free(temp);
 							}
-							else{
-								// string arguments are not valid
-								if(is_string($1, $3)){
-									yyerror("semantic error: cannot compare a string argument");
-								}
-								// boolean arguments are not valid either
-								else{
-									yyerror("semantic error: cannot compare a boolean value");
-								}
-								err = true;
-							}
+							else{ check_error($1, $3); }
 						}
 					}
 	| relexpr OP_INEQ arith		{ 	if(!err){
@@ -396,17 +352,7 @@ relexpr: arith				{ $$ = $1; }
 								file_log(temp); // log grammar production
 								free(temp);
 							}
-							else{
-								// string arguments are not valid
-								if(is_string($1, $3)){
-									yyerror("semantic error: cannot compare a string argument");
-								}
-								// boolean arguments are not valid either
-								else{
-									yyerror("semantic error: cannot compare a boolean value");
-								}
-								err = true;
-							}
+							else{ check_error($1, $3); }
 						}
 					}	
 ;
@@ -494,7 +440,8 @@ arith: term				{ $$ = $1; }
 									free(aux1);
 								}
 								else{
-									yyerror("semantic error: cannot compute addition of boolean values");
+									yyerror("semantic error: expected a value of type 'int', 'float' or 'string', but got one of type 'boolean'");
+									file_log_error("semantic error: expected a value of type 'int', 'float' or 'string', but got one of type 'boolean'");
 									err = true;
 								}
 							}
@@ -532,17 +479,7 @@ arith: term				{ $$ = $1; }
 								file_log(temp); // log grammar production
 								free(temp);
 							}
-							else{
-								// string arguments are not valid
-								if(is_string($1, $3)){
-									yyerror("semantic error: cannot compute the subtraction of a string argument");
-								}
-								// boolean arguments are not valid either
-								else{
-									yyerror("semantic error: cannot compute the subtraction of a boolean value");
-								}
-								err = true;
-							}
+							else{ check_error($1, $3); }
 						}
 					}
 ;
@@ -580,17 +517,7 @@ term: unary				{ $$ = $1; }
 								file_log(temp); // log grammar production
 								free(temp);
 							}
-							else{
-								// string arguments are not valid
-								if(is_string($1, $3)){
-									yyerror("semantic error: cannot compute the division of a string argument");
-								}
-								// boolean arguments are not valid either
-								else{
-									yyerror("semantic error: cannot compute the division of a boolean value");
-								}
-								err = true;
-							}
+							else{ check_error($1, $3); }
 						}
 					}
     | term OP_DIV unary			{ 	if(!err){
@@ -642,17 +569,7 @@ term: unary				{ $$ = $1; }
 									free(temp);
 								}
 							}
-							else{
-								// string arguments are not valid
-								if(is_string($1, $3)){
-									yyerror("semantic error: cannot compute the division of a string argument");
-								}
-								// boolean arguments are not valid either
-								else{
-									yyerror("semantic error: cannot compute the division of a boolean value");
-								}
-								err = true;
-							}
+							else{ check_error($1, $3); }
 						}
 
 					}
@@ -688,17 +605,7 @@ term: unary				{ $$ = $1; }
 								file_log(temp); // log grammar production
 								free(temp);
 							}
-							else{
-								// string arguments are not valid
-								if(is_string($1, $3)){
-									yyerror("semantic error: cannot compute the division of a string argument");
-								}
-								// boolean arguments are not valid either
-								else{
-									yyerror("semantic error: cannot compute the division of a boolean value");
-								}
-								err = true;
-							}
+							else{ check_error($1, $3); }
 						}	
 					}
 ;
@@ -722,9 +629,10 @@ unary: OP_SUB unary			{ 	if(!err){
 								file_log(temp); // log grammar production
 								free(temp);
 							}
-							else{
-								yyerror("semantic error: cannot negate non-numeric values");
-								err = true;
+							else { 
+								yyerror("semantic error: cannot negate non-numeric values"); 
+								file_log_error("semantic error: cannot negate non-numeric values");
+								err = true; 
 							}
 						}
 					}
@@ -764,17 +672,7 @@ pow: factor OP_POW pow			{ 	if(!err){
 								file_log(temp); // log grammar production
 								free(temp);
 							}
-							else{
-								// string arguments are not valid
-								if(is_string($1, $3)){
-									yyerror("semantic error: cannot compute the power of a string argument");
-								}
-								// boolean arguments are not valid either
-								else{
-									yyerror("semantic error: cannot compute the power of a boolean value");
-								}
-								err = true;
-							}
+							else{ check_error($1, $3); }
 						}
 					}
    | factor				{ $$ = $1; }
@@ -782,13 +680,15 @@ pow: factor OP_POW pow			{ 	if(!err){
 
 
 
-factor: T_IDEN				{	int found = sym_lookup($1.string, &aux);
+factor: T_IDEN				{	atributs aux;
+      						int found = sym_lookup($1.string, &aux);
       						if(found == 0){
 							name = $1.string;
 							$$ = aux;
 						}
 						else{
 							yyerror("syntax error: undeclared identifier");
+							file_log_error("syntax error: undeclared identifier");
 							err = true;
 						}
 					}
@@ -802,6 +702,7 @@ factor: T_IDEN				{	int found = sym_lookup($1.string, &aux);
 
 
 assignment: T_IDEN ASSIG expr		{ 	if(!err){ // check if there were any errors in the calculations of the expr to be assigned
+	  						atributs aux;
 							name = $1.string;
 							int found = sym_lookup(name, &aux); // 1. search identifier
 						
@@ -817,8 +718,8 @@ assignment: T_IDEN ASSIG expr		{ 	if(!err){ // check if there were any errors in
 								}
 								// if types aren't compatible then there's a semantic error
 								else{
-									//TODO: log errors to log file too
 									yyerror("semantic error: identifier and expression type missmatch"); 
+									file_log_error("semantic error: identifier and expression type missmatch");
 									err = true;
 								}
 							}
@@ -838,7 +739,7 @@ assignment: T_IDEN ASSIG expr		{ 	if(!err){ // check if there were any errors in
 										break;
 									case 1: asprintf(&temp, "%s := %lf; of type float reduced from rule 'T_IDEN ASSIG expr'", name, $3.floating);
 										break;
-									case 2: asprintf(&temp, "%s := %s; of type string reduced from rule 'T_IDEN ASSIG expr'", name, $3.string);
+									case 2: asprintf(&temp, "%s := '%s'; of type string reduced from rule 'T_IDEN ASSIG expr'", name, $3.string);
 										break;
 									case 3: asprintf(&temp, "%s := %s; of type bool reduced from rule 'T_IDEN ASSIG expr'", name, $3.boolean ? "true" : "false");
 										break;
@@ -963,6 +864,23 @@ void console_log_expr(atributs expr){
 }
 
 void file_log(char* str){
-	fprintf(fp, "sentence in line %d:\n\tgrammar production -> %s\n", line, str);
+	fprintf(fp, "sentence in line %d:\n\tgrammar production -> %s\n\n", line, str);
 }
 
+void file_log_error(char* str){
+	fprintf(fp, "Compiler error:%d: %s.\n\n", line, str);
+}
+
+void check_error(atributs a, atributs b){
+	// string arguments are not valid
+	if(is_string(a, b)){
+		yyerror("semantic error: expected a value of type 'int' or 'float', but got one of type 'string'");
+		file_log_error("semantic error: expected a value of type 'int' or 'float', but got one of type 'string'");
+	}
+	// boolean arguments are not valid either
+	else{
+		yyerror("semantic error: expected a value of type 'int' or 'float', but got one of type 'boolean'");
+		file_log_error("semantic error: expected a value of type 'int' or 'float', but got one of type 'boolean'");
+	}
+	err = true;
+}
