@@ -1,16 +1,26 @@
 // assignacions
 x := 1.5
 i := 5
+j:= 045
+k := 0.5e-04
 z := i * (x + i) - i / 4.0
 s := "Hola"
 b := z > 3 or not (i > 0 and i <= 10) or false
+y :=1.2345e3 * z + (j % x) - k ** i 
+
+/* 
+* j = 45, k = 0.000050, z = 31.25000, b = true, y = 38578.125000
+*/
 
 // expressions bàsiques
 x
 i
+j
+k
 z
 s
 b
+y
 
 /*
 * expressions
@@ -20,3 +30,10 @@ i + i * 2
 s + (s + i) + "--" + x + b
 b or not b
 "Hola" + "otra" + "vez"
+s + " mundo!"
+
+// errores
+x or b
+ascii + s
+z <= b and not j <> j
+y * s - (z / -5.2)
