@@ -13,31 +13,16 @@
 
 
 -?[0-9]+				{ 
-						yylval.integer = atoi(yytext); 
+						yylval.integer = atoi(yytext);
 						return T_INT; 
 					}
 -?[0-9]+\.[0-9]+(e-?[0-9]+)?		{ 	
-						yylval.floating = atof(yytext); 
+						yylval.floating = atof(yytext);
 						return T_FLOAT; 
-					}
-\"[^\+]*\"					{ 
-						// remove first and last characters which are '"'
-						char* temp = strdup(yytext);
-						char* result = temp + 1;
-
-						result[strlen(result) - 1] = '\0';
-						yylval.string = result;
-
-						return T_STRING; 
-					}
-("true")|("false")			{
-						yylval.boolean = (strcmp(yytext, "true")) ? false : true;
-						return T_BOOL;
 					}
 
 
 \/\/.*					{}
-#.*					{}
 "/*"([^*]|\*+[^*/])*\*+"/"		{}
 
 
@@ -57,20 +42,12 @@
 "**"					{ return OP_POW; }
 
 
-"<"					{ return OP_LT; }
-"<="					{ return OP_LE; }
-">"					{ return OP_GT; }
-">="					{ return OP_GE; }
-"="					{ return OP_EQ; }
-"<>"					{ return OP_INEQ; }
-
-
-"not"					{ return BOOL_OP_NOT; }
-"and"					{ return BOOL_OP_AND; }
-"or"					{ return BOOL_OP_OR; }
-
-
 ("pi"|"PI")				{ return CONST_PI; }
+
+
+"repeat"				{ return REPEAT; }
+"do"					{ return DO; }
+"done"					{ return DONE; }
 
 
 "exit"					{ return CMD_EXIT; }
@@ -81,7 +58,7 @@
 					}
 
 
-"\n"					{ return EOL; }
+[\n]					{ return EOL; }				
 
 " "
 

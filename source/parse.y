@@ -22,13 +22,9 @@ void console_log_expr(atributs);
 
 void file_log(char*); // file logging (primarily grammar production) for debugging
 void file_log_error(char*); // file logging for errors
-void check_error(atributs, atributs);
 
 
 /* ------ Auxiliar function declaration ------ */
-bool is_numeric(atributs, atributs);
-bool is_string(atributs, atributs);
-bool is_bool(atributs, atributs);
 int num_types(atributs, atributs);
 
 
@@ -38,6 +34,7 @@ int line = 1; // run-time line counter
 char* name;
 char* temp; 
 bool err; // error flag
+bool print;
 
 %}
 
@@ -47,7 +44,7 @@ bool err; // error flag
 }
 
 
-%token T_INT T_FLOAT T_STRING T_IDEN T_BOOL
+%token T_INT T_FLOAT T_IDEN 
 
 %token ASSIG
 
@@ -55,624 +52,243 @@ bool err; // error flag
 
 %token OP_ADD OP_SUB OP_MUL OP_DIV OP_MOD OP_POW
 
-%token OP_LT OP_LE OP_GT OP_GE OP_EQ OP_INEQ 
-
-%token BOOL_OP_NOT BOOL_OP_AND BOOL_OP_OR
+%token REPEAT DO DONE
 
 %token CONST_PI
 
 %token EOL CMD_EXIT
 
  
-%type<attrs> T_INT T_FLOAT T_STRING T_IDEN T_BOOL assignment factor pow unary term arith relexpr bool_not bool_and expr statement line 
+%type<attrs> T_INT T_FLOAT T_IDEN fixed_iteration assignment factor pow unary term expr statement sentence 
+
+%start start
 
 %%
 
 start: 
-     | start line
+     | start sentence			
 ;
 
-line: EOL 				{ line++; err = false; }
-    | statement EOL 			{ line++; err = false; }
-    | CMD_EXIT				{ exit(0); }
+sentence_list: sentence_list sentence	
+	     | sentence
+;
+
+sentence: statement EOL			{ 
+						line++; 
+						err = false; 
+						if(print){  
+							printf("%d:   PARAM %s\n%d:   CALL PUTI, 1\n", line - 1, $$.string, line); 
+						}
+					}
+	| EOL				{ err = false; }	
+	| CMD_EXIT			{ printf("%d:   HALT\n", line); exit(0); }
+
 ;
 
 statement: expr				{ if(!err) console_log_expr($1); }
 	 | assignment			{ if(!err) console_log_iden(name, $1); }
+	 | fixed_iteration		{ printf("IF sentence GOTO line_number\n"); }
 ;
 
-expr: bool_and				{ $$ = $1; }
-    | expr BOOL_OP_OR bool_and		{	if(!err){ 
-							bool res = is_bool($1, $3); // arguments can only be of type 'boolean'
-							if(res){
-								$$.boolean = $1.boolean || $3.boolean; // compute logical or
-								$$.type = 3;
-
-								asprintf(&temp, "%s or %s = %s; of type boolean reduced from rule 'expr BOOL_OP_OR bool_and'",
-										$1.boolean ? "true" : "false", $3.boolean ? "true" : "false", $$.boolean ? "true" : "false");
-
-								file_log(temp); // log grammar production
-								free(temp);
-							}
-							else{
-								yyerror("semantic error: cannot compute logical or on non-boolean values");
-								file_log_error("semantic error: cannot compute logical or on non-boolean values");
-								err = true;
-							}
-						}
-    					}
-;
-
-bool_and: bool_not			{ $$ = $1; }
-	| bool_and BOOL_OP_AND bool_not	{ 	if(!err){
-							bool res = is_bool($1, $3); // arguments can only be of type 'boolean'
-							if(res){
-								$$.boolean = $1.boolean && $3.boolean; // compute logical and
-								$$.type = 3;
-
-					
-								asprintf(&temp, "%s and %s = %s; of type boolean reduced from rule 'bool_and BOOL_OP_AND bool_not'",
-										$1.boolean ? "true" : "false", $3.boolean ? "true" : "false", $$.boolean ? "true" : "false");
-
-								file_log(temp); // log grammar production
-								free(temp);
-						}
-							else{
-								yyerror("semantic error: cannot compute logical and on non-boolean values");
-								file_log_error("semantic error: cannot compute logical and on non-boolean values");
-								err = true;
-							}
-						}
- 					}
-;
-	
-bool_not: BOOL_OP_NOT relexpr		{ 	if(!err){
-							// argument can only be of type 'boolean'
-							if($2.type == 3){
-								$$.boolean = !$2.boolean; // negate with logical '!'
-								$$.type = 3;
+expr: term				{ $$ = $1; }
+	| expr OP_ADD term		{ 	if(!err){
+							int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
 								
+							// calculate the addition depending on the types of the arguments
+							switch(type_expr){
+								case 0: $$.integer = $1.integer + $3.integer;
+									asprintf(&temp, "%d + %d = %d; of type int reduced from rule 'expr OP_ADD term'", $1.integer, $3.integer, $$.integer);
+									break;
+								case 1: $$.floating = $1.integer + $3.floating;
+									asprintf(&temp, "%d + %lf = %lf; of type float reduced from rule 'expr OP_ADD term'", $1.integer, $3.floating, $$.floating);
+									break;
+								case 2: $$.floating = $1.floating + $3.integer;
+									asprintf(&temp, "%lf + %d = %lf; of type float reduced from rule 'expr OP_ADD term'", $1.floating, $3.integer, $$.floating);
+									break;
+								case 3: $$.floating = $1.floating + $3.floating;
+									asprintf(&temp, "%lf + %lf = %lf; of type float reduced from rule 'expr OP_ADD term'", $1.floating, $3.floating, $$.floating);
+									break;
+							}
 								
-								asprintf(&temp, "not %s; of type boolean reduced from rule 'BOOL_OP_NOT relexpr'", $$.boolean ? "true" : "false");
+							$$.type = type_expr == 0 ? 0 : 1;
+							
+							
 
-								file_log(temp); // log grammar production
-								free(temp);
-							}
-							else{
-								yyerror("semantic error: cannot compute logical not on non-boolean values");
-								file_log_error("semantic error: cannot compute logical not on non-boolean values");
-								err = true;
-							}
-						}
-					}	
-	| relexpr			{ $$ = $1; }
-;
-
-relexpr: arith				{ $$ = $1; }
-	| relexpr OP_GT arith		{	if(!err){
-							// check types and make appropiate conversion if needed
-							bool numeric = is_numeric($1, $3); 
-									
-							if(numeric){ // operation applicable to numeric and string only for concatenation 
-								int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
-
-								// check arg1 is greater than arg2 depending on the types of the arguments
-								switch(type_expr){
-									case 0: $$.boolean = $1.integer > $3.integer ? true : false;
-										asprintf(&temp, "%d > %d = %s; of type boolean reduced from rule 'relexpr OP_GT arith'", 
-															$1.integer, $3.integer, $$.boolean ? "true" : "false");
-										break;
-									case 1: $$.boolean = $1.integer > $3.floating ? true : false;
-										asprintf(&temp, "%d > %lf = %s; of type boolean reduced from rule 'relexpr OP_GT arith'", 
-															$1.integer, $3.floating, $$.boolean ? "true" : "false");
-										break;
-									case 2: $$.boolean = $1.floating > $3.integer ? true : false;
-										asprintf(&temp, "%lf > %d = %s; of type boolean reduced from rule 'relexpr OP_GT arith'", 
-															$1.floating, $3.integer, $$.boolean ? "true" : "false");
-										break;
-									case 3: $$.boolean = $1.floating > $3.floating ? true : false;
-										asprintf(&temp, "%lf > %lf = %s; of type boolean reduced from rule 'relexpr OP_GT arith'", 
-															$1.floating, $3.floating, $$.boolean ? "true" : "false");
-										break;
-								}
-								$$.type = 3;
-
-								file_log(temp); // log grammar production
-								free(temp);
-							}
-							else{ check_error($1, $3); }
+							file_log(temp); // log grammar production
+							free(temp);
 						}
 					}
-	| relexpr OP_GE arith		{
-						if(!err){
-							// check types and make appropiate conversion if needed
-							bool numeric = is_numeric($1, $3); 
-									
-							if(numeric){ // operation applicable to numeric and string only for concatenation 
-								int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
-
-								// check arg1 is greater or equal than arg2 depending on the types of the arguments
-								switch(type_expr){
-									case 0: $$.boolean = $1.integer >= $3.integer ? true : false;
-										asprintf(&temp, "%d >= %d = %s; of type boolean reduced from rule 'relexpr OP_GE arith'", 
-															$1.integer, $3.integer, $$.boolean ? "true" : "false");
-										break;
-									case 1: $$.boolean = $1.integer >= $3.floating ? true : false;
-										asprintf(&temp, "%d >= %lf = %s; of type boolean reduced from rule 'relexpr OP_GE arith'", 
-															$1.integer, $3.floating, $$.boolean ? "true" : "false");
-										break;
-									case 2: $$.boolean = $1.floating >= $3.integer ? true : false;
-										asprintf(&temp, "%lf >= %d = %s; of type boolean reduced from rule 'relexpr OP_GE arith'", 
-															$1.floating, $3.integer, $$.boolean ? "true" : "false");
-										break;
-									case 3: $$.boolean = $1.floating >= $3.floating ? true : false;
-										asprintf(&temp, "%lf >= %lf = %s; of type boolean reduced from rule 'relexpr OP_GE arith'", 
-															$1.floating, $3.floating, $$.boolean ? "true" : "false");
-										break;
-								}
-								$$.type = 3;
-
-								file_log(temp); // log grammar production
-								free(temp);
-							}
-							else{ check_error($1, $3); }
-						}
-					}
-	| relexpr OP_LT arith		{
-						if(!err){
-							// check types and make appropiate conversion if needed
-							bool numeric = is_numeric($1, $3); 
-									
-							if(numeric){ // operation applicable to numeric and string only for concatenation 
-								int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
-
-								// check arg1 is less than arg2 depending on the types of the arguments
-								switch(type_expr){
-									case 0: $$.boolean = $1.integer < $3.integer ? true : false;
-										asprintf(&temp, "%d < %d = %s; of type boolean reduced from rule 'relexpr OP_LT arith'", 
-															$1.integer, $3.integer, $$.boolean ? "true" : "false");
-										break;
-									case 1: $$.boolean = $1.integer < $3.floating ? true : false;
-										asprintf(&temp, "%d < %lf = %s; of type boolean reduced from rule 'relexpr OP_LT arith'", 
-															$1.integer, $3.floating, $$.boolean ? "true" : "false");
-										break;
-									case 2: $$.boolean = $1.floating < $3.integer ? true : false;
-										asprintf(&temp, "%lf < %d = %s; of type boolean reduced from rule 'relexpr OP_LT arith'", 
-															$1.floating, $3.integer, $$.boolean ? "true" : "false");
-										break;
-									case 3: $$.boolean = $1.floating < $3.floating ? true : false;
-										asprintf(&temp, "%lf < %lf = %s; of type boolean reduced from rule 'relexpr OP_LT arith'", 
-															$1.floating, $3.floating, $$.boolean ? "true" : "false");
-										break;
-								}
-								$$.type = 3;
-
-								file_log(temp); // log grammar production
-								free(temp);
-							}
-							else{ check_error($1, $3); }
-						}
-					}
-	| relexpr OP_LE arith		{	if(!err){
-							// check types and make appropiate conversion if needed
-							bool numeric = is_numeric($1, $3); 
-									
-							if(numeric){ // operation applicable to numeric and string only for concatenation 
-								int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
-
-								// check arg1 is less or equal than arg2 depending on the types of the arguments
-								switch(type_expr){
-									case 0: $$.boolean = $1.integer <= $3.integer ? true : false;
-										asprintf(&temp, "%d <= %d = %s; of type boolean reduced from rule 'relexpr OP_LE arith'", 
-															$1.integer, $3.integer, $$.boolean ? "true" : "false");
-										break;
-									case 1: $$.boolean = $1.integer <= $3.floating ? true : false;
-										asprintf(&temp, "%d <= %lf = %s; of type boolean reduced from rule 'relexpr OP_LE arith'", 
-															$1.integer, $3.floating, $$.boolean ? "true" : "false");
-										break;
-									case 2: $$.boolean = $1.floating <= $3.integer ? true : false;
-										asprintf(&temp, "%lf <= %d = %s; of type boolean reduced from rule 'relexpr OP_LE arith'", 
-															$1.floating, $3.integer, $$.boolean ? "true" : "false");
-										break;
-									case 3: $$.boolean = $1.floating <= $3.floating	? true : false;
-										asprintf(&temp, "%lf <= %lf = %s; of type boolean reduced from rule 'relexpr OP_LE arith'", 
-															$1.floating, $3.floating, $$.boolean ? "true" : "false");
-										break;
-								}
-								$$.type = 3;
-
-								file_log(temp); // log grammar production
-								free(temp);
-							}
-							else{ check_error($1, $3); }
-						}
-					}
-	| relexpr OP_EQ arith		{	if(!err){
-							// check types and make appropiate conversion if needed
-							bool numeric = is_numeric($1, $3); 
-									
-							if(numeric){ // operation applicable to numeric and string only for concatenation 
-								int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
-
-								// check equality depending on the types of the arguments
-								switch(type_expr){
-									case 0: $$.boolean = $1.integer == $3.integer ? true : false;
-										asprintf(&temp, "'%d = %d' = %s; of type boolean reduced from rule 'relexpr OP_EQ arith'", 
-															$1.integer, $3.integer, $$.boolean ? "true" : "false");
-										break;
-									case 1: $$.boolean = $1.integer == $3.floating ? true : false;
-										asprintf(&temp, "'%d = %lf' = %s; of type boolean reduced from rule 'relexpr OP_EQ arith'", 
-															$1.integer, $3.floating, $$.boolean ? "true" : "false");
-										break;
-									case 2: $$.boolean = $1.floating == $3.integer ? true : false;
-										asprintf(&temp, "'%lf = %d' = %s; of type boolean reduced from rule 'relexpr OP_EQ arith'", 
-															$1.floating, $3.integer, $$.boolean ? "true" : "false");
-										break;
-									case 3: $$.boolean = $1.floating == $3.floating ? true : false;
-										asprintf(&temp, "'%lf = %lf' = %s; of type boolean reduced from rule 'relexpr OP_EQ arith'", 
-															$1.floating, $3.floating, $$.boolean ? "true" : "false");
-										break;
-								}
-								$$.type = 3;
-
-								file_log(temp); // log grammar production
-								free(temp);
-							}
-							else{ check_error($1, $3); }
-						}
-					}
-	| relexpr OP_INEQ arith		{ 	if(!err){
-							// check types and make appropiate conversion if needed
-							bool numeric = is_numeric($1, $3); 
-									
-							if(numeric){ // operation applicable to numeric and string only for concatenation 
-								int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
-
-								// check inequality depending on the types of the arguments
-								switch(type_expr){
-									case 0: $$.boolean = $1.integer != $3.integer;
-										asprintf(&temp, "%d <> %d = %s; of type boolean reduced from rule 'relexpr OP_INEQ arith'", 
-															$1.integer, $3.integer, $$.boolean ? "true" : "false");
-										break;
-									case 1: $$.boolean = $1.integer != $3.floating;
-										asprintf(&temp, "%d <> %lf = %s; of type boolean reduced from rule 'relexpr OP_INEQ arith'", 
-															$1.integer, $3.floating, $$.boolean ? "true" : "false");
-										break;
-									case 2: $$.boolean = $1.floating != $3.integer ? true : false;
-										asprintf(&temp, "%lf <> %d = %s; of type boolean reduced from rule 'relexpr OP_INEQ arith'", 
-															$1.floating, $3.integer, $$.boolean ? "true" : "false");
-										break;
-									case 3: $$.boolean = $1.floating != $3.floating ? true : false;
-										asprintf(&temp, "%lf <> %lf = %s; of type boolean reduced from rule 'relexpr OP_INEQ arith'", 
-															$1.floating, $3.floating, $$.boolean ? "true" : "false");
-										break;
-								}
-								$$.type = 3;
-
-								file_log(temp); // log grammar production
-								free(temp);
-							}
-							else{ check_error($1, $3); }
-						}
-					}	
-;
-
-
-arith: term				{ $$ = $1; }
-	| arith OP_ADD term		{ 	if(!err){
-							// check types and make appropiate conversion if needed
-							bool numeric = is_numeric($1, $3);
-
-							if(numeric){ // operation applicable to numeric and string only for concatenation
-								int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
+	| expr OP_SUB term		{	if(!err){
+							int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
 								
-								// calculate the addition depending on the types of the arguments
-								switch(type_expr){
-									case 0: $$.integer = $1.integer + $3.integer;
-										asprintf(&temp, "%d + %d = %d; of type int reduced from rule 'arith OP_ADD term'", 
-																	$1.integer, $3.integer, $$.integer);
-										break;
-									case 1: $$.floating = $1.integer + $3.floating;
-										asprintf(&temp, "%d + %lf = %lf; of type float reduced from rule 'arith OP_ADD term'", 
-																	$1.integer, $3.floating, $$.floating);
-										break;
-									case 2: $$.floating = $1.floating + $3.integer;
-										asprintf(&temp, "%lf + %d = %lf; of type float reduced from rule 'arith OP_ADD term'", 
-																	$1.floating, $3.integer, $$.floating);
-										break;
-									case 3: $$.floating = $1.floating + $3.floating;
-										asprintf(&temp, "%lf + %lf = %lf; of type float reduced from rule 'arith OP_ADD term'", 
-																	$1.floating, $3.floating, $$.floating);
-										break;
-								}
-								
-								$$.type = type_expr == 0 ? 0 : 1;
-								
-								file_log(temp); // log grammar production
-								free(temp);
+							// calculate the subtraction depending on the types of the arguments
+							switch(type_expr){
+								case 0: $$.integer = $1.integer - $3.integer;
+									asprintf(&temp, "%d - %d = %d; of type int reduced from rule 'expr OP_SUB term'", $1.integer, $3.integer, $$.integer);
+									break;
+								case 1: $$.floating = $1.integer - $3.floating;
+									asprintf(&temp, "%d - %lf = %lf; of type float reduced from rule 'expr OP_SUB term'", $1.integer, $3.floating, $$.floating);
+									break;
+								case 2: $$.floating = $1.floating - $3.integer;
+									asprintf(&temp, "%lf - %d = %lf; of type float reduced from rule 'expr OP_SUB term'", $1.floating, $3.integer, $$.floating);
+									break;
+								case 3: $$.floating = $1.floating - $3.floating;
+									asprintf(&temp, "%lf - %lf = %lf; of type float reduced from rule 'expr OP_SUB term'", $1.floating, $3.floating, $$.floating);
+									break;
 							}
-							else{
-								// concatenation
-								if(is_string($1, $3)){
-									char* str = strdup($1.string);
-									char* aux1 = strdup($3.string);
-									
-									// if both aren't strings, must make the appropiate conversions
-									if(($1.type == 2) != ($3.type == 2)){
-										if($1.type == 2){
-											switch($3.type){
-												case 0: asprintf(&aux1, "%d", $3.integer);
-													break;
-												case 1: asprintf(&aux1, "%lf", $3.floating);
-													break;
-												case 3: asprintf(&aux1, "%s", $3.boolean ? "true" : "false");
-													break;
-											}
-										}
-										else{
-											switch($1.type){
-												case 0: asprintf(&str, "%d", $1.integer);
-													break;
-												case 1: asprintf(&str, "%lf", $1.floating);
-													break;
-												case 3: asprintf(&str, "%s", $1.boolean ? "true" : "false");
-													break;
-											}
-										}
-									}
-									char* aux = strdup(str); // save first string for logging purposes
-									
-									// after needed conversions, concatenate the result into 'str'
-									strcat(str, aux1);
-									
-									asprintf(&temp, "%s + %s = '%s'; of type string reduced from rule 'arith OP_ADD term'", aux, aux1, str);
-									
-									$$.string = strdup(str);
-									$$.type = 2;	
-									
-
-									file_log(temp); // log grammar production
-									free(temp);
-									
-									// free all memory allocated
-									free(str);
-									free(aux);
-									free(aux1);
-								}
-								else{
-									yyerror("semantic error: expected a value of type 'int', 'float' or 'string', but got one of type 'boolean'");
-									file_log_error("semantic error: expected a value of type 'int', 'float' or 'string', but got one of type 'boolean'");
-									err = true;
-								}
-							}
-						}
-					}
-	| arith OP_SUB term		{	if(!err){
-							// check types and make appropiate conversion if needed	
-							bool numeric = is_numeric($1, $3);
-
-							if(numeric){ //operation only applicable to numeric values
-								int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
 								
-								// calculate the subtraction depending on the types of the arguments
-								switch(type_expr){
-									case 0: $$.integer = $1.integer - $3.integer;
-										asprintf(&temp, "%d - %d = %d; of type int reduced from rule 'arith OP_SUB term'", 
-																	$1.integer, $3.integer, $$.integer);
-										break;
-									case 1: $$.floating = $1.integer - $3.floating;
-										asprintf(&temp, "%d - %lf = %lf; of type float reduced from rule 'arith OP_SUB term'", 
-																	$1.integer, $3.floating, $$.floating);
-										break;
-									case 2: $$.floating = $1.floating - $3.integer;
-										asprintf(&temp, "%lf - %d = %lf; of type float reduced from rule 'arith OP_SUB term'", 
-																	$1.floating, $3.integer, $$.floating);
-										break;
-									case 3: $$.floating = $1.floating - $3.floating;
-										asprintf(&temp, "%lf - %lf = %lf; of type float reduced from rule 'arith OP_SUB term'", 
-																	$1.floating, $3.floating, $$.floating);
-										break;
-								}
+							$$.type = type_expr == 0 ? 0 : 1; 
 								
-								$$.type = type_expr == 0 ? 0 : 1; 
-								
-								file_log(temp); // log grammar production
-								free(temp);
-							}
-							else{ check_error($1, $3); }
+							file_log(temp); // log grammar production
+							free(temp);
 						}
 					}
 ;
 
 term: unary				{ $$ = $1; }
-    | term OP_MUL unary			{ 	if(!err){
-							// check types and make appropiate conversion if needed
-							bool numeric = is_numeric($1, $3);
-
-							if(numeric){ //operation only applicable to numeric values								
-								int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
+    | term OP_MUL unary			{ 	if(!err){							
+							int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
 								
-								// calculate the product depending on the types of the arguments
-								switch(type_expr){
-									case 0: $$.integer = $1.integer * $3.integer;
-										asprintf(&temp, "%d * %d = %d; of type int reduced from rule 'term OP_MUL unary'", 
-																	$1.integer, $3.integer, $$.integer);
-										break;
-									case 1: $$.floating = $1.integer * $3.floating;
-										asprintf(&temp, "%d * %lf = %lf; of type float reduced from rule 'term OP_MUL unary'", 
-																	$1.integer, $3.floating, $$.floating);
-										break;
-									case 2: $$.floating = $1.floating * $3.integer;
-										asprintf(&temp, "%lf * %d = %lf; of type float reduced from rule 'term OP_MUL unary'", 
-																	$1.floating, $3.integer, $$.floating);
-										break;
-									case 3: $$.floating = $1.floating * $3.floating;
-										asprintf(&temp, "%lf * %lf = %lf; of type float reduced from rule 'term OP_MUL unary'", 
-																	$1.floating, $3.floating, $$.floating);
-										break;
-								}
+							// calculate the product depending on the types of the arguments
+							switch(type_expr){
+								case 0: $$.integer = $1.integer * $3.integer;
+									asprintf(&temp, "%d * %d = %d; of type int reduced from rule 'term OP_MUL unary'", $1.integer, $3.integer, $$.integer);
+									break;
+								case 1: $$.floating = $1.integer * $3.floating;
+									asprintf(&temp, "%d * %lf = %lf; of type float reduced from rule 'term OP_MUL unary'", $1.integer, $3.floating, $$.floating);
+									break;
+								case 2: $$.floating = $1.floating * $3.integer;
+									asprintf(&temp, "%lf * %d = %lf; of type float reduced from rule 'term OP_MUL unary'", $1.floating, $3.integer, $$.floating);
+									break;
+								case 3: $$.floating = $1.floating * $3.floating;
+									asprintf(&temp, "%lf * %lf = %lf; of type float reduced from rule 'term OP_MUL unary'", $1.floating, $3.floating, $$.floating);
+									break;
+							}
 								
 								$$.type = type_expr == 0 ? 0 : 1; 
 								
 								file_log(temp); // log grammar production
 								free(temp);
-							}
-							else{ check_error($1, $3); }
 						}
 					}
     | term OP_DIV unary			{ 	if(!err){
-							// check types and make appropiate conversion if needed
-							bool numeric = is_numeric($1, $3);
-
-							if(numeric){ //operation only applicable to numeric values
-								// control division by 0
-								if($3.type == 0){
-									if($3.integer == 0){
-										yyerror("semantic error: cannot divide by 0"); 
-										err = true;
-									}
-								}
-								else{
-									if($3.floating == 0.0f){
-										yyerror("semantic error: cannot divide by 0.0"); 
-										err = true;
-									}
-								}
-								
-								// if there wasn't an attempt of dividing by 0 calculate the division depending on arguments' type
-								if(!err){
-									int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
-									
-									// calculate the division depending on the types of the arguments
-									switch(type_expr){
-										case 0: $$.floating = $1.integer / $3.integer;
-											asprintf(&temp, "%d / %d = %lf; of type float reduced from rule 'term OP_DIV unary'", 
-																		$1.integer, $3.integer, $$.floating);
-											break;
-										case 1: $$.floating = $1.integer / $3.floating;
-											asprintf(&temp, "%d / %lf = %lf; of type float reduced from rule 'term OP_MOD unary'", 
-																		$1.integer, $3.floating, $$.floating);
-											break;
-										case 2: $$.floating = $1.floating / $3.integer;
-											asprintf(&temp, "%lf / %d = %lf; of type float reduced from rule 'term OP_MOD unary'", 
-																		$1.floating, $3.integer, $$.floating);
-											break;
-										case 3: $$.floating = $1.floating / $3.floating;
-											asprintf(&temp, "%lf / %lf = %lf; of type float reduced from rule 'term OP_MOD unary'", 
-																		$1.floating, $3.floating, $$.floating);
-											break;
-									}
-
-									$$.type = 1;
-
-									file_log(temp); // log grammar production
-									free(temp);
+							// control division by 0
+							if($3.type == 0){
+								if($3.integer == 0){
+									yyerror("semantic error: cannot divide by 0"); 
+									err = true;
 								}
 							}
-							else{ check_error($1, $3); }
+							else{
+								if($3.floating == 0.0f){
+									yyerror("semantic error: cannot divide by 0.0"); 
+									err = true;
+								}
+							}
+								
+							// if there wasn't an attempt of dividing by 0 calculate the division depending on arguments' type
+							if(!err){
+								int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
+									
+								// calculate the division depending on the types of the arguments
+								switch(type_expr){
+									case 0: $$.floating = $1.integer / $3.integer;
+										asprintf(&temp, "%d / %d = %lf; of type float reduced from rule 'term OP_DIV unary'", 
+																	$1.integer, $3.integer, $$.floating);
+										break;
+									case 1: $$.floating = $1.integer / $3.floating;
+										asprintf(&temp, "%d / %lf = %lf; of type float reduced from rule 'term OP_MOD unary'", 
+																	$1.integer, $3.floating, $$.floating);
+										break;
+									case 2: $$.floating = $1.floating / $3.integer;
+										asprintf(&temp, "%lf / %d = %lf; of type float reduced from rule 'term OP_MOD unary'", 
+																	$1.floating, $3.integer, $$.floating);
+										break;
+									case 3: $$.floating = $1.floating / $3.floating;
+										asprintf(&temp, "%lf / %lf = %lf; of type float reduced from rule 'term OP_MOD unary'", 
+																	$1.floating, $3.floating, $$.floating);
+										break;
+								}
+
+								$$.type = 1;
+
+								file_log(temp); // log grammar production
+								free(temp);
+							}
 						}
 
 					}
     | term OP_MOD unary			{ 	if(!err){
-							// check types and make appropiate conversion if needed							
-							bool numeric = is_numeric($1, $3);
-							
-							if(numeric){ // operation only applicable to numeric arguments	
-								int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
+							int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
 
-								// calculate the modulo depending on the types of the arguments
-								switch(type_expr){
-									case 0: $$.integer = $1.integer % $3.integer;
-										asprintf(&temp, "%d %% %d = %d; of type int reduced from rule 'term OP_MOD unary'", 
-																	$1.integer, $3.integer, $$.integer);
-										break;
-									case 1: $$.floating = fmod($1.integer,$3.floating);
-										asprintf(&temp, "%d %% %lf = %lf; of type float reduced from rule 'term OP_MOD unary'", 
-																	$1.integer, $3.floating, $$.floating);
-										break;
-									case 2: $$.floating = fmod($1.floating, $3.integer);
-										asprintf(&temp, "%lf %% %d = %lf; of type float reduced from rule 'term OP_MOD unary'", 
-																	$1.floating, $3.integer, $$.floating);
-										break;
-									case 3: $$.floating = fmod($1.floating, $3.floating);
-										asprintf(&temp, "%lf %% %lf = %lf; of type float reduced from rule 'term OP_MOD unary'", 
-																	$1.floating, $3.floating, $$.floating);
-										break;
-								}
-								
-								$$.type = type_expr == 0 ? 0 : 1; 
-								
-								file_log(temp); // log grammar production
-								free(temp);
+							// calculate the modulo depending on the types of the arguments
+							switch(type_expr){
+								case 0: $$.integer = $1.integer % $3.integer;
+									asprintf(&temp, "%d %% %d = %d; of type int reduced from rule 'term OP_MOD unary'", $1.integer, $3.integer, $$.integer);
+									break;
+								case 1: $$.floating = fmod($1.integer,$3.floating);
+									asprintf(&temp, "%d %% %lf = %lf; of type float reduced from rule 'term OP_MOD unary'", $1.integer, $3.floating, $$.floating);
+									break;
+								case 2: $$.floating = fmod($1.floating, $3.integer);
+									asprintf(&temp, "%lf %% %d = %lf; of type float reduced from rule 'term OP_MOD unary'", $1.floating, $3.integer, $$.floating);
+									break;
+								case 3: $$.floating = fmod($1.floating, $3.floating);
+									asprintf(&temp, "%lf %% %lf = %lf; of type float reduced from rule 'term OP_MOD unary'", $1.floating, $3.floating, $$.floating);
+									break;
 							}
-							else{ check_error($1, $3); }
+								
+							$$.type = type_expr == 0 ? 0 : 1; 
+								
+							file_log(temp); // log grammar production
+							free(temp);
 						}	
 					}
 ;
 
 unary: OP_SUB unary			{ 	if(!err){
-     							// only negate numeric arguments aka of type 0 or 1
-							if(($2.type == 0) || ($2.type == 1)){
-								if($2.type == 0){
-									$$.integer = -$2.integer;
-									$$.type = 0;
-									
-									asprintf(&temp, "-%d = %d; of type int reduced from rule 'OP_SUB unary'", $2.integer, $$.integer);
-								}
-								else{
-									$$.floating = -$2.floating;
-									$$.type = 1;
-									
-									asprintf(&temp, "-%lf = %lf; of type float reduced from rule 'OP_SUB unary'", $2.floating, $$.floating);
-								}
+     							if($2.type == 0){
+								$$.integer = -$2.integer;
+								$$.type = 0;
 								
-								file_log(temp); // log grammar production
-								free(temp);
+								asprintf(&temp, "-%d = %d; of type int reduced from rule 'OP_SUB unary'", $2.integer, $$.integer);
 							}
-							else { 
-								yyerror("semantic error: cannot negate non-numeric values"); 
-								file_log_error("semantic error: cannot negate non-numeric values");
-								err = true; 
+							else{
+								$$.floating = -$2.floating;
+								$$.type = 1;
+								
+								asprintf(&temp, "-%lf = %lf; of type float reduced from rule 'OP_SUB unary'", $2.floating, $$.floating);
 							}
+								
+							file_log(temp); // log grammar production
+							free(temp);
 						}
 					}
      | pow				{ $$ = $1; }
 ;
 
 pow: factor OP_POW pow			{ 	if(!err){
-							// check types and make appropiate conversion if needed
-							bool numeric = is_numeric($1, $3);
-
-							if(numeric){
-								int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
-								//char* temp;
+							int type_expr = num_types($1, $3); // determine the kind of numeric expression we encountered
 								
-								// calculate the power depending on the types of the arguments
-								switch(type_expr){
-									case 0: $$.integer = pow($1.integer, $3.integer);
-										asprintf(&temp, "%d ** %d = %d; of type int reduced from rule 'factor OP_POW pow'", 
-																	$1.integer, $3.integer, $$.integer);
-										break;
-									case 1: $$.floating = pow($1.integer, $3.floating);
-										asprintf(&temp, "%d ** %lf = %lf; of type float reduced from rule 'factor OP_POW pow'", 
-																	$1.integer, $3.floating, $$.floating);
-										break;
-									case 2: $$.floating = pow($1.floating, $3.integer);
-										asprintf(&temp, "%lf ** %d = %lf; of type float reduced from rule 'factor OP_POW pow'", 
-																	$1.floating, $3.integer, $$.floating);
-										break;
-									case 3: $$.floating = pow($1.floating, $3.floating);
-										asprintf(&temp, "%lf ** %lf = %lf; of type float reduced from rule 'factor OP_POW pow'", 
-																	$1.floating, $3.floating, $$.floating);
-										break;
-								}
-
-								$$.type = type_expr == 0 ? 0 : 1;
-								
-								file_log(temp); // log grammar production
-								free(temp);
+							// calculate the power depending on the types of the arguments
+							switch(type_expr){
+								case 0: $$.integer = pow($1.integer, $3.integer);
+									asprintf(&temp, "%d ** %d = %d; of type int reduced from rule 'factor OP_POW pow'", $1.integer, $3.integer, $$.integer);
+									break;
+								case 1: $$.floating = pow($1.integer, $3.floating);
+									asprintf(&temp, "%d ** %lf = %lf; of type float reduced from rule 'factor OP_POW pow'", $1.integer, $3.floating, $$.floating);
+									break;
+								case 2: $$.floating = pow($1.floating, $3.integer);
+									asprintf(&temp, "%lf ** %d = %lf; of type float reduced from rule 'factor OP_POW pow'", $1.floating, $3.integer, $$.floating);
+									break;
+								case 3: $$.floating = pow($1.floating, $3.floating);
+									asprintf(&temp, "%lf ** %lf = %lf; of type float reduced from rule 'factor OP_POW pow'", $1.floating, $3.floating, $$.floating);
+									break;
 							}
-							else{ check_error($1, $3); }
+
+							$$.type = type_expr == 0 ? 0 : 1;
+								
+							file_log(temp); // log grammar production
+							free(temp);
 						}
 					}
    | factor				{ $$ = $1; }
@@ -685,6 +301,7 @@ factor: T_IDEN				{	atributs aux;
       						if(found == 0){
 							name = $1.string;
 							$$ = aux;
+							print = true;
 						}
 						else{
 							yyerror("syntax error: undeclared identifier");
@@ -694,12 +311,9 @@ factor: T_IDEN				{	atributs aux;
 					}
       | T_INT				{ $$ = $1; $$.type = 0; }
       | T_FLOAT				{ $$ = $1; $$.type = 1; }
-      | T_STRING			{ $$ = $1; $$.type = 2; }
-      | T_BOOL				{ $$ = $1; $$.type = 3; }
       | CONST_PI			{ atributs pi; pi.floating = acos(-1.0); pi.type = 1; $$ = pi; }
       | SYM_OB expr SYM_CB		{ $$ = $2; }
 ;
-
 
 
 assignment: T_IDEN ASSIG expr		{ 	if(!err){ // check if there were any errors in the calculations of the expr to be assigned
@@ -734,15 +348,10 @@ assignment: T_IDEN ASSIG expr		{ 	if(!err){ // check if there were any errors in
 
 							// if the assignment succeeded log grammar production
 							if(!err) {
-								//char* temp;
 								switch($3.type){
 									case 0: asprintf(&temp, "%s := %d; of type int reduced from rule 'T_IDEN ASSIG expr'", name, $3.integer);
 										break;
 									case 1: asprintf(&temp, "%s := %lf; of type float reduced from rule 'T_IDEN ASSIG expr'", name, $3.floating);
-										break;
-									case 2: asprintf(&temp, "%s := '%s'; of type string reduced from rule 'T_IDEN ASSIG expr'", name, $3.string);
-										break;
-									case 3: asprintf(&temp, "%s := %s; of type bool reduced from rule 'T_IDEN ASSIG expr'", name, $3.boolean ? "true" : "false");
 										break;
 								}
 
@@ -752,6 +361,9 @@ assignment: T_IDEN ASSIG expr		{ 	if(!err){ // check if there were any errors in
 							}
 						}
 					}
+;
+
+fixed_iteration: REPEAT expr DO EOL sentence_list DONE 	{ printf("expresions?\n"); }
 ;
 
 %%
@@ -781,6 +393,8 @@ int main(int argc, char *argv[])
   }
   yyparse();
 
+  printf("%d:   HALT\n", line);
+
   fclose(fp);
   return 0;
 }
@@ -794,21 +408,6 @@ void yyerror(char *str)
 /*-----------------------------------------------------*/
 /*----------------- Auxiliar functions ----------------*/
 /*-----------------------------------------------------*/
-
-/* 
-*  Checks if passed variables are of a numeric type or not 
-*/
-bool is_numeric(atributs a, atributs b){
-	return (((a.type == 0) || (a.type == 1)) && ((b.type == 0) || (b.type == 1)));
-}
-
-bool is_string(atributs a, atributs b){
-	return (a.type == 2) || (b.type == 2);
-}
-
-bool is_bool(atributs a, atributs b){
-	return (a.type == 3) && (b.type == 3);
-}
 
 /* 
 *  Returns the kind of numeric expression we've encountered.
@@ -848,10 +447,6 @@ void console_log_iden(char* name, atributs assig){
 		break;
 	case 1: printf("Assignment name: %s\ttype: float\tvalue: %lf\n", name, assig.floating); 
 		break;
-	case 2: printf("Assignment name: %s\ttype: string\tvalue: '%s'\n", name, assig.string); 
-		break;
-	case 3: printf("Assignment name: %s\ttype: boolean\tvalue: %s\n", name, assig.boolean ? "true" : "false"); 
-		break;
   }
 }
 
@@ -860,10 +455,6 @@ void console_log_expr(atributs expr){
 	case 0: printf("Expression of type: int\t\tvalue: %d\n", expr.integer); 
 		break;
 	case 1: printf("Expression of type: float\tvalue: %lf\n", expr.floating); 
-		break;
-	case 2: printf("Expression of type: string\tvalue: '%s'\n", expr.string); 
-		break;
-	case 3: printf("Expression of type: boolean\tvalue: %s\n", expr.boolean ? "true" : "false"); 
 		break;
   }
 }
@@ -874,18 +465,4 @@ void file_log(char* str){
 
 void file_log_error(char* str){
 	fprintf(fp, "sentence in line %d:\n\tcompiler error -> %s.\n\n", line, str);
-}
-
-void check_error(atributs a, atributs b){
-	// string arguments are not valid
-	if(is_string(a, b)){
-		yyerror("semantic error: expected a value of type 'int' or 'float', but got one of type 'string'");
-		file_log_error("semantic error: expected a value of type 'int' or 'float', but got one of type 'string'");
-	}
-	// boolean arguments are not valid either
-	else{
-		yyerror("semantic error: expected a value of type 'int' or 'float', but got one of type 'boolean'");
-		file_log_error("semantic error: expected a value of type 'int' or 'float', but got one of type 'boolean'");
-	}
-	err = true;
 }
