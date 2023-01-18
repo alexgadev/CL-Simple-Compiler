@@ -59,7 +59,7 @@ bool print;
 %token EOL CMD_EXIT
 
  
-%type<attrs> T_INT T_FLOAT T_IDEN fixed_iteration assignment factor pow unary term expr statement sentence 
+%type<attrs> T_INT T_FLOAT T_IDEN assignment factor pow unary term expr statement sentence 
 
 %start start
 
@@ -87,7 +87,7 @@ sentence: statement EOL			{
 
 statement: expr				{ if(!err) console_log_expr($1); }
 	 | assignment			{ if(!err) console_log_iden(name, $1); }
-	 | fixed_iteration		{ printf("IF sentence GOTO line_number\n"); }
+	 | fixed_iteration		{ printf("useless?\n"); }
 ;
 
 expr: term				{ $$ = $1; }
@@ -363,7 +363,10 @@ assignment: T_IDEN ASSIG expr		{ 	if(!err){ // check if there were any errors in
 					}
 ;
 
-fixed_iteration: REPEAT expr DO EOL sentence_list DONE 	{ printf("expresions?\n"); }
+fixed_iteration: open_sentence sentence_list DONE 	{ printf("IF sentence GOTO line_number\n"); }
+;
+
+open_sentence: REPEAT expr DO EOL			{ printf("abre repeat\n"); }
 ;
 
 %%
