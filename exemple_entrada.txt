@@ -1,6 +1,6 @@
 // expressions
-x := 5.0
-i := 3
+x := 5.7
+i := -2
 y := i + i * 3 - x
 
 // factorial

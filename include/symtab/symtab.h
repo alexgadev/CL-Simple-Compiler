@@ -8,7 +8,7 @@
 /*             #defines and typedefs to configure symtab                    */
 /*                                                                          */
 /****************************************************************************/
-#include "../atributs.h"
+#include "../compiler.h"
 
 /* The type of the value field of symbol table entries                      */
 typedef atributs sym_value_type;          /* you will need to replace this    */

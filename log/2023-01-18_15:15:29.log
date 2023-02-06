@@ -1,6 +1,0 @@
-sentence in line 1:
-	grammar production -> x := 1.500000; of type float reduced from rule 'T_IDEN ASSIG expr'.
-
-sentence in line 4:
-	grammar production -> 1.500000 + 1 = 2.500000; of type float reduced from rule 'expr OP_ADD term'.
-

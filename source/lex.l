@@ -2,7 +2,7 @@
 #define YYSTYPE atributs
 
 #include <stdio.h>
-#include "../include/atributs.h"
+#include "../include/compiler.h"
 #include "../gen/parse.tab.h"
 %}
 
@@ -14,10 +14,12 @@
 
 -?[0-9]+				{ 
 						yylval.integer = atoi(yytext);
+						yylval.id = (char *) strdup(yytext);
 						return T_INT; 
 					}
 -?[0-9]+\.[0-9]+(e-?[0-9]+)?		{ 	
-						yylval.floating = atof(yytext);
+						yylval.real = atof(yytext);
+						yylval.id = (char *) strdup(yytext);	
 						return T_FLOAT; 
 					}
 
@@ -53,12 +55,13 @@
 "exit"					{ return CMD_EXIT; }
 
 [a-zA-Z]+				{ 
-						yylval.string = (char *) strdup(yytext);
+						yylval.id = (char *) strdup(yytext);
 						return T_IDEN; 
 					}
 
 
-[\n]					{ return EOL; }				
+[\n]					{ return EOL; }			
+[\t]
 
 " "
 
